@@ -39,8 +39,8 @@ An AI-powered website idea enhancer that transforms rough website concepts into 
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   cd YOUR_REPO_NAME
+   git clone https://github.com/MarwanabdalR/Web-Builder
+   cd Web-Builder
    ```
 
 2. **Install dependencies**
@@ -112,4 +112,4 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ---
 
-Built with ❤️ by [Your Name]
+Built with ❤️ by [Marwan Abdalrady]

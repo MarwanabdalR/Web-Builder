@@ -1,9 +1,11 @@
 {
   "name": "server",
   "version": "1.0.0",
+  "description": "Vibe Coder Backend",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.1.3",

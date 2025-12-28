@@ -55,23 +55,31 @@ const limiter = rateLimit({
 
 const app = express();
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or Postman)
     if (!origin) return callback(null, true);
     
-    if (origin.startsWith('http://localhost') || origin.endsWith('.vercel.app')) {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin); 
-      callback(new Error('Not allowed by CORS'));
+    // Allow localhost on any port for development
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
     }
+    
+    // Allow Vercel deployments
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    logger.warn('Blocked by CORS:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true 
-}));
+  credentials: true
+};
 
-app.options('*', cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 

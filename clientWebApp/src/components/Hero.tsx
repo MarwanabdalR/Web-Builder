@@ -104,6 +104,7 @@ const useEnhanceIdea = () => {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ input: state.input }),
       });
 

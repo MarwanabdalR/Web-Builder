@@ -93,10 +93,6 @@ app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
-const timeout = (ms) => new Promise((_, reject) =>
-  setTimeout(() => reject(new Error('Request timeout')), ms)
-);
-
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', model: GEMINI_MODEL, timestamp: new Date().toISOString() });
 });
@@ -128,28 +124,72 @@ app.post('/enhance', async (req, res) => {
       * **Typography:** [Fonts]
     `;
 
-    const result = await Promise.race([
-      model.generateContent(masterPrompt),
-      timeout(REQUEST_TIMEOUT)
-    ]);
+    const generatePromise = model.generateContent(masterPrompt);
+    
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('Request timeout')), REQUEST_TIMEOUT);
+    });
+
+    let result;
+    try {
+      result = await Promise.race([generatePromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+    } catch (raceError) {
+      clearTimeout(timeoutId);
+      if (raceError.message === 'Request timeout') {
+        return res.status(408).json({ enhanced: "⚠️ Request timed out." });
+      }
+      throw raceError;
+    }
 
     const finalOutput = result.response.text();
     res.json({ enhanced: finalOutput });
 
   } catch (error) {
-    logger.error('Enhancement error:', error);
+    logger.error('Enhancement error:', {
+      message: error.message,
+      stack: error.stack,
+      status: error.status,
+      code: error.code,
+      name: error.name
+    });
 
-    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid input' });
-    if (error.message === 'Request timeout') return res.status(408).json({ enhanced: "⚠️ Request timed out." });
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input' });
+    }
 
-    // Fallback for Quota (Since you kept 2.5-flash)
-    if (error.status === 429 || error.message?.includes('429')) {
-      return res.json({ 
-        enhanced: `# ⚠️ Quota Exceeded\n\n**Gemini 2.5 Flash** is currently busy. Please try again in 1 minute.\n\n*(This is a fallback response)*` 
+    if (error.message === 'Request timeout') {
+      return res.status(408).json({ enhanced: "⚠️ Request timed out." });
+    }
+
+    // Handle API key errors (403 Forbidden - leaked/invalid key)
+    if (error.status === 403 || error.message?.includes('API key') || error.message?.includes('leaked') || error.message?.includes('403')) {
+      logger.error('API Key Error:', error.message);
+      return res.status(500).json({ 
+        enhanced: `# ⚠️ API Key Error\n\nYour Gemini API key has been disabled or is invalid. Please:\n1. Generate a new API key from [Google AI Studio](https://aistudio.google.com/app/apikey)\n2. Update the \`GEMINI_API_KEY\` environment variable on Render\n3. Redeploy your service\n\n**Error:** ${error.message || 'API key invalid or leaked'}` 
       });
     }
 
-    res.status(500).json({ enhanced: "⚠️ Error connecting to AI." });
+    // Handle rate limiting (429 Too Many Requests)
+    if (error.status === 429 || error.message?.includes('429')) {
+      return res.json({ 
+        enhanced: `# ⚠️ Quota Exceeded\n\n**Gemini API** is currently busy. Please try again in 1 minute.\n\n*(This is a fallback response)*` 
+      });
+    }
+
+    // Handle invalid model name or other API errors (400 Bad Request)
+    if (error.status === 400 || error.message?.includes('model') || error.message?.includes('invalid')) {
+      logger.error('API Configuration Error:', error.message);
+      return res.status(500).json({ 
+        enhanced: `# ⚠️ Configuration Error\n\nThere's an issue with the API configuration. Please check:\n- Model name is valid\n- API key is correct\n\n**Error:** ${error.message || 'Invalid configuration'}` 
+      });
+    }
+
+    logger.error('Unexpected error details:', error);
+    res.status(500).json({ 
+      enhanced: `# ⚠️ Error Connecting to AI\n\n**Error:** ${error.message || 'Unknown error'}\n\nPlease check server logs for more details.` 
+    });
   }
 });
 

@@ -60,13 +60,23 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps, curl, or Postman)
     if (!origin) return callback(null, true);
     
-    // Allow localhost on any port for development
-    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    // Allow localhost on any port for development (both http and https)
+    if (
+      origin.startsWith('http://localhost:') || 
+      origin.startsWith('https://localhost:') ||
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.startsWith('https://127.0.0.1:')
+    ) {
       return callback(null, true);
     }
     
-    // Allow Vercel deployments
-    if (origin.endsWith('.vercel.app')) {
+    // Allow Vercel deployments (both http and https)
+    if (origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Allow Render.com deployments
+    if (origin.includes('.onrender.com')) {
       return callback(null, true);
     }
     
